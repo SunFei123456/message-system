@@ -74,6 +74,7 @@ class MessageManagerAPI {
             
             // 渲染界面
             this.renderTable();
+            this.renderMobileCards();
             this.renderPagination();
         } catch (error) {
             console.error('加载初始数据失败:', error);
@@ -230,6 +231,7 @@ class MessageManagerAPI {
         this.currentPage = 1;
         await this.loadMessages();
         this.renderTable();
+        this.renderMobileCards();
         this.renderPagination();
     }
     
@@ -256,6 +258,7 @@ class MessageManagerAPI {
         this.updateSortIcons(field);
         await this.loadMessages();
         this.renderTable();
+        this.renderMobileCards();
     }
     
     updateSortIcons(activeField) {
@@ -273,6 +276,91 @@ class MessageManagerAPI {
         }
     }
     
+    renderMobileCards() {
+        const cardsContainer = document.getElementById('messageCards');
+        if (!cardsContainer) return;
+
+        cardsContainer.innerHTML = '';
+
+        if (this.filteredMessages.length === 0) {
+            cardsContainer.innerHTML = `
+                <div class="text-center py-12 text-gray-500">
+                    <div class="flex flex-col items-center">
+                        <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <h3 class="text-xl font-semibold">没有找到匹配的留言</h3>
+                        <p class="text-sm">请尝试调整您的搜索或筛选条件。</p>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        this.filteredMessages.forEach((message, index) => {
+            const card = document.createElement('div');
+            card.className = 'bg-white rounded-lg p-4 shadow-sm border border-gray-200 loading-animation';
+
+            const formattedDate = new Date(message.timestamp).toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const statusIndicator = message.status === 'unread' 
+                ? '<span class="w-2 h-2 bg-blue-500 rounded-full" title="未读"></span>'
+                : '<span class="w-2 h-2 bg-gray-300 rounded-full" title="已读"></span>';
+
+            card.innerHTML = `
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex items-center space-x-2">
+                        ${statusIndicator}
+                        <span class="text-sm font-medium text-gray-900">#${message.id}</span>
+                    </div>
+                    <span class="text-xs text-gray-500">${formattedDate}</span>
+                </div>
+                <div class="flex items-center space-x-2 mb-3">
+                    <svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                    </svg>
+                    <span class="text-sm text-gray-700">${message.email}</span>
+                </div>
+                <p class="text-sm text-gray-600 leading-relaxed mb-4 whitespace-nowrap overflow-hidden text-ellipsis" title="${message.message}">${message.message}</p>
+                <div class="flex justify-end space-x-3 border-t pt-3">
+                    <button class="mark-as-read-btn text-sm font-medium ${message.status === 'read' ? 'text-gray-400 cursor-not-allowed' : 'text-indigo-600 hover:text-indigo-900'}" ${message.status === 'read' ? 'disabled' : ''}>
+                        ${message.status === 'read' ? '已读' : '标记已读'}
+                    </button>
+                    <button class="delete-btn text-sm font-medium text-red-600 hover:text-red-900">删除</button>
+                </div>
+            `;
+
+            const deleteButton = card.querySelector('.delete-btn');
+            if (deleteButton) {
+                deleteButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.deleteMessage(message.id);
+                });
+            }
+
+            const markAsReadButton = card.querySelector('.mark-as-read-btn');
+            if (markAsReadButton && message.status === 'unread') {
+                markAsReadButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.markAsRead(message.id);
+                });
+            }
+            
+            card.addEventListener('click', () => this.openMessageModal(message.message));
+
+            cardsContainer.appendChild(card);
+
+            setTimeout(() => {
+                card.classList.add('fade-in');
+            }, index * 50);
+        });
+    }
+
     renderTable() {
         const tbody = document.getElementById('messageTableBody');
         if (!tbody) return;
@@ -435,9 +523,9 @@ class MessageManagerAPI {
         
         // 下一页按钮
         const nextBtn = document.createElement('button');
-        nextBtn.className = `pagination-btn px-4 py-2 rounded-lg ${this.currentPage === this.totalPages ? 'opacity-50 cursor-not-allowed' : ''}`;
+        nextBtn.className = `pagination-btn px-4 py-2 rounded-lg ${this.currentPage >= this.totalPages ? 'opacity-50 cursor-not-allowed' : ''}`;
         nextBtn.innerHTML = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>';
-        nextBtn.disabled = this.currentPage === this.totalPages;
+        nextBtn.disabled = this.currentPage >= this.totalPages;
         nextBtn.addEventListener('click', () => {
             if (this.currentPage < this.totalPages) {
                 this.goToPage(this.currentPage + 1);
@@ -450,12 +538,17 @@ class MessageManagerAPI {
         this.currentPage = page;
         await this.loadMessages();
         this.renderTable();
+        this.renderMobileCards();
         this.renderPagination();
         
-        // 滚动到表格顶部
-        const table = document.querySelector('.message-table');
-        if (table) {
-            table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // 滚动到表格或卡片顶部
+        const isMobile = window.innerWidth <= 480;
+        const scrollTarget = isMobile 
+            ? document.querySelector('.mobile-cards') 
+            : document.querySelector('.message-table');
+
+        if (scrollTarget) {
+            scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }
     

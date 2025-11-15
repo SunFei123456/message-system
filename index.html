@@ -120,6 +120,10 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+
+        .mobile-cards {
+            display: none;
+        }
         
         @media (max-width: 768px) {
             .message-table {
@@ -136,6 +140,10 @@
         }
         
         @media (max-width: 480px) {
+            .message-table {
+                display: none;
+            }
+            
             .mobile-cards {
                 display: block;
             }
@@ -358,7 +366,7 @@
         </div>
 
         <!-- Mobile Cards (Hidden by default) -->
-        <div class="mobile-cards hidden">
+        <div class="mobile-cards">
             <div id="messageCards" class="space-y-4">
                 <!-- Mobile cards will be dynamically generated -->
             </div>
